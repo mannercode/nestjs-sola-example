@@ -4,59 +4,9 @@ A small NestJS example of **Service-oriented Layered Architecture (SoLA)**: keep
 services independent by composing their collaboration in a higher layer. The
 example follows one use case, creating a movie showtime.
 
-## Run
-
-Requires Node.js 24 or newer.
-
-```sh
-npm ci
-npm run build
-npm start
-```
-
-The API listens on port 3000. Each Core owns a private in-memory store, initially
-empty. Data disappears when the process stops. The following requests use the IDs
-returned by the first two requests (`1` each on a fresh process).
-
-```sh
-curl -i http://localhost:3000/movies \
-  -H 'Content-Type: application/json' \
-  -d '{"title":"A Trip to the Moon"}'
-
-curl -i http://localhost:3000/theaters \
-  -H 'Content-Type: application/json' \
-  -d '{"name":"Screen 1"}'
-
-curl -i http://localhost:3000/showtime-creation/movies
-curl -i http://localhost:3000/showtime-creation/theaters
-
-curl -i http://localhost:3000/showtime-creation \
-  -H 'Content-Type: application/json' \
-  -d '{"movieId":1,"theaterId":1,"startsAt":"2030-01-01T18:00:00Z"}'
-
-curl -i http://localhost:3000/movies/1/showtimes
-```
-
-Creation returns `201`. The final request returns `200` with both resources:
-
-```json
-{
-  "movie": { "id": 1, "title": "A Trip to the Moon" },
-  "showtimes": [
-    {
-      "id": 1,
-      "movieId": 1,
-      "theaterId": 1,
-      "startsAt": "2030-01-01T18:00:00.000Z"
-    }
-  ]
-}
-```
-
-An unknown movie or theater returns `404` without creating a showtime. Empty
-movie/theater names, invalid integer IDs, and invalid date-time input return
-`400`. This teaching slice covers reference checks and creation; scheduling
-conflicts, ticket generation, and persistent storage require a larger example.
+**Even without adopting all of SoLA, put controllers in a separate layer.**
+Controllers can serve resource-oriented and use-case-oriented APIs using the
+services each endpoint needs, while Core modules retain their own boundaries.
 
 ## Why move controllers out of Core modules?
 
@@ -150,6 +100,72 @@ Read [GatewayModule](src/gateway/gateway.module.ts) for the Nest wiring,
 and [ShowtimeCreationService](src/application/showtime-creation/showtime-creation.service.ts)
 for the use case. Core modules have no controllers and export only their service.
 
+## What this arrangement costs
+
+Composition introduces an additional module where services collaborate. For
+single-domain operations, Gateway can call Core directly. If two Application
+services need shared behavior, extract the behavior to an appropriate lower
+boundary or reconsider their responsibilities; adding a peer dependency would
+break the rule.
+
+This sample runs the services in one Nest application. Process separation and
+data consistency require their own design; an acyclic module graph does not
+provide distributed transactions or independent deployment by itself.
+
+## Run
+
+Requires Node.js 24 or newer.
+
+```sh
+npm ci
+npm run build
+npm start
+```
+
+The API listens on port 3000. Each Core owns a private in-memory store, initially
+empty. Data disappears when the process stops. The following requests use the IDs
+returned by the first two requests (`1` each on a fresh process).
+
+```sh
+curl -i http://localhost:3000/movies \
+  -H 'Content-Type: application/json' \
+  -d '{"title":"A Trip to the Moon"}'
+
+curl -i http://localhost:3000/theaters \
+  -H 'Content-Type: application/json' \
+  -d '{"name":"Screen 1"}'
+
+curl -i http://localhost:3000/showtime-creation/movies
+curl -i http://localhost:3000/showtime-creation/theaters
+
+curl -i http://localhost:3000/showtime-creation \
+  -H 'Content-Type: application/json' \
+  -d '{"movieId":1,"theaterId":1,"startsAt":"2030-01-01T18:00:00Z"}'
+
+curl -i http://localhost:3000/movies/1/showtimes
+```
+
+Creation returns `201`. The final request returns `200` with both resources:
+
+```json
+{
+  "movie": { "id": 1, "title": "A Trip to the Moon" },
+  "showtimes": [
+    {
+      "id": 1,
+      "movieId": 1,
+      "theaterId": 1,
+      "startsAt": "2030-01-01T18:00:00.000Z"
+    }
+  ]
+}
+```
+
+An unknown movie or theater returns `404` without creating a showtime. Empty
+movie/theater names, invalid integer IDs, and invalid date-time input return
+`400`. This teaching slice covers reference checks and creation; scheduling
+conflicts, ticket generation, and persistent storage require a larger example.
+
 ## Check the boundaries
 
 ```sh
@@ -165,22 +181,3 @@ through its own public entry point.
 
 GitHub Actions runs these checks on Node.js 24 and 26. The rules examine static
 imports; keeping business orchestration in Application remains a design decision.
-
-## What this arrangement costs
-
-Composition introduces an additional module where services collaborate. For
-single-domain operations, Gateway can call Core directly. If two Application
-services need shared behavior, extract the behavior to an appropriate lower
-boundary or reconsider their responsibilities; adding a peer dependency would
-break the rule.
-
-This sample runs the services in one Nest application. Process separation and
-data consistency require their own design; an acyclic module graph does not
-provide distributed transactions or independent deployment by itself.
-
-## Recommendation
-
-**Even without adopting all of SoLA, put controllers in a separate layer.** This
-is the architectural recommendation illustrated here. Controllers can then serve
-resource-oriented and use-case-oriented APIs, using the services each endpoint
-needs, while Core modules retain their own boundaries.
