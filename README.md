@@ -134,6 +134,35 @@ This sample runs the services in one Nest application. Process separation and
 data consistency require their own design; an acyclic module graph does not
 provide distributed transactions or independent deployment by itself.
 
+## Check SoLA boundaries with Oxlint
+
+[oxlint.config.mjs](oxlint.config.mjs) loads `eslint-plugin-boundaries` through
+Oxlint to enforce the SoLA dependency rules:
+
+| Rule                                                     | Example rejected by lint                          |
+| -------------------------------------------------------- | ------------------------------------------------- |
+| Reference lower layers only                              | Core → Application or Gateway                     |
+| No references between distinct modules in the same layer | `core/movies` → `core/showtimes`, including types |
+| Enter another module through its public `index.ts`       | Gateway → `core/movies/movies.service.ts`         |
+
+References within a module are allowed. Gateway is one module; each direct child
+directory of Application, Core, or Infrastructure is a separate module. The
+composition root sits outside these service boundaries.
+
+The checks cover imports, re-exports, type-only references, inline `import()`
+types, and `import = require()`. Within a module, use implementation files
+directly instead of importing its own public entry point.
+
+```sh
+npm run lint
+npm run check
+```
+
+`lint` runs Oxlint and formatting checks; `check` also compiles TypeScript.
+GitHub Actions runs `check` on Node.js 24 and 26. These rules validate the import
+graph. Controller placement and the responsibilities of individual methods remain
+part of code review.
+
 ## Run
 
 Requires Node.js 24 or newer.
@@ -187,32 +216,3 @@ An unknown movie or theater returns `404` without creating a showtime. Empty
 movie/theater names, invalid integer IDs, and invalid date-time input return
 `400`. This teaching slice covers reference checks and creation; scheduling
 conflicts, ticket generation, and persistent storage require a larger example.
-
-## Check SoLA boundaries with Oxlint
-
-[oxlint.config.mjs](oxlint.config.mjs) loads `eslint-plugin-boundaries` through
-Oxlint to enforce the SoLA dependency rules:
-
-| Rule                                                     | Example rejected by lint                          |
-| -------------------------------------------------------- | ------------------------------------------------- |
-| Reference lower layers only                              | Core → Application or Gateway                     |
-| No references between distinct modules in the same layer | `core/movies` → `core/showtimes`, including types |
-| Enter another module through its public `index.ts`       | Gateway → `core/movies/movies.service.ts`         |
-
-References within a module are allowed. Gateway is one module; each direct child
-directory of Application, Core, or Infrastructure is a separate module. The
-composition root sits outside these service boundaries.
-
-The checks cover imports, re-exports, type-only references, inline `import()`
-types, and `import = require()`. Within a module, use implementation files
-directly instead of importing its own public entry point.
-
-```sh
-npm run lint
-npm run check
-```
-
-`lint` runs Oxlint and formatting checks; `check` also compiles TypeScript.
-GitHub Actions runs `check` on Node.js 24 and 26. These rules validate the import
-graph. Controller placement and the responsibilities of individual methods remain
-part of code review.

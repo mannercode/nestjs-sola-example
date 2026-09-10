@@ -129,6 +129,33 @@ Core 모듈에는 컨트롤러가 없으며, Nest 모듈의 exports에는 서비
 프로세스 분리와 데이터 정합성에는 별도 설계가 필요하다.
 모듈 그래프에 순환이 없다는 사실만으로 분산 트랜잭션이나 독립 배포가 보장되지는 않는다.
 
+## Oxlint로 SoLA 경계 검사
+
+[oxlint.config.mjs](oxlint.config.mjs)에서 Oxlint에 `eslint-plugin-boundaries`를 연결해
+SoLA 의존성 규칙을 검사한다.
+
+| 규칙                                        | lint가 거부하는 참조 예시                        |
+| ------------------------------------------- | ------------------------------------------------ |
+| 하위 계층만 참조                            | Core → Application 또는 Gateway                  |
+| 같은 계층의 서로 다른 모듈 간 참조 금지     | `core/movies` → `core/showtimes`, 타입 참조 포함 |
+| 다른 모듈의 공개 진입점인 `index.ts`만 사용 | Gateway → `core/movies/movies.service.ts`        |
+
+한 모듈 안의 참조는 허용한다. Gateway는 모듈 하나로 취급하고,
+Application·Core·Infrastructure 바로 아래의 각 디렉터리는 별도 모듈로 취급한다.
+애플리케이션의 최상위 모듈 연결 코드는 이 서비스 경계 밖에 둔다.
+
+import와 re-export, 타입 전용 참조, 인라인 `import()` 타입, `import = require()`를 검사한다.
+모듈 내부에서는 자기 공개 진입점을 거치지 않고 구현 파일을 직접 가져온다.
+
+```sh
+npm run lint
+npm run check
+```
+
+`lint`는 Oxlint와 포맷 검사를 실행하고, `check`는 TypeScript 컴파일까지 실행한다.
+GitHub Actions는 Node.js 24와 26에서 `check`를 실행한다.
+이 규칙은 import 그래프를 검사한다. 컨트롤러의 위치와 개별 메서드의 책임은 코드 리뷰로 확인한다.
+
 ## 실행
 
 Node.js 24 이상이 필요하다.
@@ -182,30 +209,3 @@ curl -i http://localhost:3000/movies/1/showtimes
 영화 제목이나 극장 이름이 비어 있거나, ID를 정수로 해석할 수 없거나,
 날짜·시간 입력이 유효하지 않으면 `400`을 반환한다.
 이 예제는 참조 확인과 생성까지 다룬다. 상영시간 충돌, 티켓 생성, 영속 저장소는 더 큰 예제에서 다룰 범위다.
-
-## Oxlint로 SoLA 경계 검사
-
-[oxlint.config.mjs](oxlint.config.mjs)에서 Oxlint에 `eslint-plugin-boundaries`를 연결해
-SoLA 의존성 규칙을 검사한다.
-
-| 규칙                                        | lint가 거부하는 참조 예시                        |
-| ------------------------------------------- | ------------------------------------------------ |
-| 하위 계층만 참조                            | Core → Application 또는 Gateway                  |
-| 같은 계층의 서로 다른 모듈 간 참조 금지     | `core/movies` → `core/showtimes`, 타입 참조 포함 |
-| 다른 모듈의 공개 진입점인 `index.ts`만 사용 | Gateway → `core/movies/movies.service.ts`        |
-
-한 모듈 안의 참조는 허용한다. Gateway는 모듈 하나로 취급하고,
-Application·Core·Infrastructure 바로 아래의 각 디렉터리는 별도 모듈로 취급한다.
-애플리케이션의 최상위 모듈 연결 코드는 이 서비스 경계 밖에 둔다.
-
-import와 re-export, 타입 전용 참조, 인라인 `import()` 타입, `import = require()`를 검사한다.
-모듈 내부에서는 자기 공개 진입점을 거치지 않고 구현 파일을 직접 가져온다.
-
-```sh
-npm run lint
-npm run check
-```
-
-`lint`는 Oxlint와 포맷 검사를 실행하고, `check`는 TypeScript 컴파일까지 실행한다.
-GitHub Actions는 Node.js 24와 26에서 `check`를 실행한다.
-이 규칙은 import 그래프를 검사한다. 컨트롤러의 위치와 개별 메서드의 책임은 코드 리뷰로 확인한다.
