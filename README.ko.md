@@ -2,7 +2,7 @@
 
 [English](README.md)
 
-**SoLA(Service-oriented Layered Architecture)**를 적용한 작은 NestJS 예제다.
+**SoLA(Service-oriented Layered Architecture)** 기반의 작은 NestJS 예제다.
 서비스 간 협력을 상위 계층에서 조합해 각 서비스의 독립성을 유지한다.
 영화의 상영시간을 생성하는 유스케이스 하나를 따라 구조를 살펴본다.
 
