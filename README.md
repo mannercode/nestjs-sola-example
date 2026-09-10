@@ -4,11 +4,6 @@ A small NestJS example of **Service-oriented Layered Architecture (SoLA)**: keep
 services independent by composing their collaboration in a higher layer. The
 example follows one use case, creating a movie showtime.
 
-The design is based on Manner Code's
-[Backend Service Analysis and Design (2)](https://mannercode.com/2025/05/01/backend-design-2.html)
-(Korean). [nest-seed](https://github.com/mannercode/nest-seed) demonstrates its use
-in a larger application.
-
 ## Run
 
 Requires Node.js 24 or newer.
@@ -104,7 +99,7 @@ imports.
 | Core           | One domain's rules and data                  | Infrastructure                    |
 | Infrastructure | External systems such as payments or storage | External APIs                     |
 
-Application, Core, and Infrastructure are the service categories in the article.
+Application, Core, and Infrastructure are the service categories in SoLA.
 Gateway separates HTTP consumers from those services. Classes within a module can
 collaborate normally. Each module exports its service; its data remains private.
 This use case does not call an external system, so it has no Infrastructure module.
