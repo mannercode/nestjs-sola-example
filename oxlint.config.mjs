@@ -16,6 +16,14 @@ export default defineConfig({
       'src/core/**/*.ts',
       'src/infrastructure/**/*.ts',
     ],
+    'boundaries/additional-dependency-nodes': [
+      { selector: 'TSImportType > Literal', kind: 'type', name: 'import' },
+      {
+        selector: 'TSExternalModuleReference > Literal',
+        kind: 'value',
+        name: 'require',
+      },
+    ],
     'boundaries/elements': [
       { type: 'gateway', pattern: 'src/gateway' },
       ...layers.slice(1).map((layer) => ({

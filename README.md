@@ -1,5 +1,7 @@
 # SoLA with NestJS
 
+[한국어](README.ko.md)
+
 A small NestJS example of **Service-oriented Layered Architecture (SoLA)**: keep
 services independent by composing their collaboration in a higher layer. The
 example follows one use case, creating a movie showtime.
@@ -8,29 +10,49 @@ example follows one use case, creating a movie showtime.
 Controllers can serve resource-oriented and use-case-oriented APIs using the
 services each endpoint needs, while Core modules retain their own boundaries.
 
-## Why move controllers out of Core modules?
+## Before: controllers and services in feature modules
 
-An HTTP resource and a service boundary do not have to match one-to-one. For
-example, `GET /movies/:id/showtimes` needs both movie and showtime services. A
-controller serving the showtime creation flow also needs to check the selected
-movie and theater.
+Start with a design that applies neither SoLA nor controller separation. Each
+feature module contains its controller and service, and services can call other
+feature services directly.
 
-When each controller lives inside its Core module, those HTTP requirements become
-dependencies of that entire module. The following arrangement introduces a cycle,
-even if the Core services themselves do not inject each other:
+An HTTP resource and a service boundary do not have to match one-to-one.
+`MoviesController` uses both movie and showtime services to serve
+`GET /movies/:id/showtimes`. Meanwhile, `ShowtimesService` checks the selected movie
+and theater before creating a showtime.
 
 ```mermaid
-flowchart LR
-    Movies["MoviesModule<br/>MoviesController + MoviesService"]
-    Showtimes["ShowtimesModule<br/>ShowtimesController + ShowtimesService"]
-    Movies -->|"list a movie's showtimes"| Showtimes
-    Showtimes -->|"check the movie before creation"| Movies
+flowchart TB
+    subgraph MoviesModule[MoviesModule]
+        MoviesController[MoviesController]
+        MoviesService[MoviesService]
+    end
+    subgraph TheatersModule[TheatersModule]
+        TheatersController[TheatersController]
+        TheatersService[TheatersService]
+    end
+    subgraph ShowtimesModule[ShowtimesModule]
+        ShowtimesController[ShowtimesController]
+        ShowtimesService[ShowtimesService]
+    end
+    MoviesController --> MoviesService
+    MoviesController -->|"read a movie's showtimes"| ShowtimesService
+    TheatersController --> TheatersService
+    ShowtimesController --> ShowtimesService
+    ShowtimesService -->|"check movie"| MoviesService
+    ShowtimesService -->|"check theater"| TheatersService
 ```
 
-Using multiple services in a controller does not by itself create a cycle. A cycle
-appears when another dependency leads back to the originating module. Separating
-controllers into a **Gateway layer** keeps HTTP composition from adding peer
-dependencies to Core modules. In this example, Gateway means HTTP adapters.
+These provider references require `MoviesModule` to import `ShowtimesModule`,
+while `ShowtimesModule` imports `MoviesModule` and `TheatersModule`. The result is
+the module cycle `MoviesModule → ShowtimesModule → MoviesModule`, even though
+`MoviesService` does not inject `ShowtimesService`.
+
+Using multiple services in a controller does not by itself create a cycle; the
+reverse module dependency completes it. Moving controllers into a **Gateway
+layer** removes HTTP composition from domain module imports. SoLA also moves the
+collaboration between Core services into Application. Here, Gateway means HTTP
+adapters.
 
 Nest's [module imports and exports](https://docs.nestjs.com/modules) provide the
 mechanism for these boundaries. SoLA supplies a rule for arranging them.
@@ -54,7 +76,7 @@ Gateway separates HTTP consumers from those services. Classes within a module ca
 collaborate normally. Each module exports its service; its data remains private.
 This use case does not call an external system, so it has no Infrastructure module.
 
-## From a use case to Nest modules
+## After: controllers in Gateway, use cases in Application
 
 The showtime creation flow selects an existing movie and theater, then submits a
 showtime. `/showtime-creation` groups the endpoints for that task, and
@@ -166,18 +188,31 @@ movie/theater names, invalid integer IDs, and invalid date-time input return
 `400`. This teaching slice covers reference checks and creation; scheduling
 conflicts, ticket generation, and persistent storage require a larger example.
 
-## Check the boundaries
+## Check SoLA boundaries with Oxlint
+
+[oxlint.config.mjs](oxlint.config.mjs) loads `eslint-plugin-boundaries` through
+Oxlint to enforce the SoLA dependency rules:
+
+| Rule                                                     | Example rejected by lint                          |
+| -------------------------------------------------------- | ------------------------------------------------- |
+| Reference lower layers only                              | Core → Application or Gateway                     |
+| No references between distinct modules in the same layer | `core/movies` → `core/showtimes`, including types |
+| Enter another module through its public `index.ts`       | Gateway → `core/movies/movies.service.ts`         |
+
+References within a module are allowed. Gateway is one module; each direct child
+directory of Application, Core, or Infrastructure is a separate module. The
+composition root sits outside these service boundaries.
+
+The checks cover imports, re-exports, type-only references, inline `import()`
+types, and `import = require()`. Within a module, use implementation files
+directly instead of importing its own public entry point.
 
 ```sh
+npm run lint
 npm run check
 ```
 
-The check runs TypeScript, formatting, and import-boundary lint rules. Cross-module
-imports must enter through the target module's `index.ts` and point to a lower
-layer. Importing `core/showtimes` from `core/movies`, importing Gateway from Core,
-or reaching directly into another module's implementation fails lint. Imports
-inside a module use the implementation files directly, avoiding self-imports
-through its own public entry point.
-
-GitHub Actions runs these checks on Node.js 24 and 26. The rules examine static
-imports; keeping business orchestration in Application remains a design decision.
+`lint` runs Oxlint and formatting checks; `check` also compiles TypeScript.
+GitHub Actions runs `check` on Node.js 24 and 26. These rules validate the import
+graph. Controller placement and the responsibilities of individual methods remain
+part of code review.
