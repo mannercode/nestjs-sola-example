@@ -1,0 +1,32 @@
+{
+  "name": "nestjs-sola-example",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "A minimal NestJS example of SoLA with a separate HTTP controller layer",
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "start": "node dist/main.js",
+    "lint": "oxlint -c oxlint.config.mjs src && prettier --check .",
+    "format": "prettier --write .",
+    "check": "npm run lint && npm run build"
+  },
+  "dependencies": {
+    "@nestjs/common": "12.0.1",
+    "@nestjs/core": "12.0.1",
+    "@nestjs/platform-express": "12.0.1",
+    "reflect-metadata": "0.2.2",
+    "rxjs": "7.8.2"
+  },
+  "devDependencies": {
+    "@types/node": "26.4.0",
+    "eslint-import-resolver-typescript": "4.4.5",
+    "eslint-plugin-boundaries": "7.2.0",
+    "oxlint": "1.81.0",
+    "prettier": "3.9.6",
+    "typescript": "6.0.3"
+  }
+}
