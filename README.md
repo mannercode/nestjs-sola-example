@@ -19,12 +19,12 @@ The boxes represent modules; arrows represent dependencies.
 flowchart TB
     subgraph MoviesModule["MoviesModule"]
         direction TB
-        MoviesController["MoviesController"] --> MoviesService["MoviesService"]
+        MoviesController["MoviesController<br/>/movies"] --> MoviesService["MoviesService"]
         MoviesService --> MoviesRepository["MoviesRepository"]
     end
     subgraph ShowtimesModule["ShowtimesModule"]
         direction TB
-        ShowtimesController["ShowtimesController"] --> ShowtimesService["ShowtimesService"]
+        ShowtimesController["ShowtimesController<br/>/showtimes"] --> ShowtimesService["ShowtimesService"]
         ShowtimesService --> ShowtimesRepository["ShowtimesRepository"]
     end
     classDef controller fill:#dbeafe,stroke:#2563eb,color:#172554
@@ -42,10 +42,10 @@ Dependencies stay inside each module, so there is no module cycle at this point.
 An endpoint may need data from multiple features, and a business rule may need
 another feature's service. Consider two requirements:
 
-1. `GET /movies/:id/showtimes` needs movie details and showtimes, so
+1. A new endpoint, `GET /movies/:id/showtimes`, needs movie details and showtimes, so
    `MoviesController` uses both services.
-2. Creating a showtime checks that the movie exists, so `ShowtimesService` uses
-   `MoviesService`.
+2. Creating a showtime through `POST /showtimes` checks that the movie exists, so
+   `ShowtimesService` uses `MoviesService`.
 
 The numbered arrows add references between modules. Blue nodes are controllers;
 green nodes are services. Repositories stay inside their modules and are omitted
@@ -54,11 +54,11 @@ from the following diagrams to focus on the dependencies that cross boundaries.
 ```mermaid
 flowchart LR
     subgraph MoviesModule["MoviesModule"]
-        MoviesController["MoviesController<br/>GET /movies/:id/showtimes"]
+        MoviesController["MoviesController<br/>/movies<br/>New: GET /movies/:id/showtimes"]
         MoviesService["MoviesService"]
     end
     subgraph ShowtimesModule["ShowtimesModule"]
-        ShowtimesController["ShowtimesController"]
+        ShowtimesController["ShowtimesController<br/>/showtimes"]
         ShowtimesService["ShowtimesService"]
     end
     MoviesController --> MoviesService
@@ -102,8 +102,8 @@ four class dependencies from the problem example:
 ```mermaid
 flowchart TB
     subgraph GatewayModule["GatewayModule — HTTP controllers"]
-        MoviesController["MoviesController<br/>GET /movies/:id/showtimes"]
-        ShowtimesController["ShowtimesController"]
+        MoviesController["MoviesController<br/>/movies<br/>GET /movies/:id/showtimes"]
+        ShowtimesController["ShowtimesController<br/>/showtimes"]
     end
     subgraph ShowtimesModule["ShowtimesModule"]
         ShowtimesService["ShowtimesService"]

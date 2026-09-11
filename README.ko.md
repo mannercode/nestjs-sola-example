@@ -19,12 +19,12 @@ Core 모듈은 자기 경계를 유지한다.
 flowchart TB
     subgraph MoviesModule["MoviesModule"]
         direction TB
-        MoviesController["MoviesController"] --> MoviesService["MoviesService"]
+        MoviesController["MoviesController<br/>/movies"] --> MoviesService["MoviesService"]
         MoviesService --> MoviesRepository["MoviesRepository"]
     end
     subgraph ShowtimesModule["ShowtimesModule"]
         direction TB
-        ShowtimesController["ShowtimesController"] --> ShowtimesService["ShowtimesService"]
+        ShowtimesController["ShowtimesController<br/>/showtimes"] --> ShowtimesService["ShowtimesService"]
         ShowtimesService --> ShowtimesRepository["ShowtimesRepository"]
     end
     classDef controller fill:#dbeafe,stroke:#2563eb,color:#172554
@@ -42,9 +42,9 @@ flowchart TB
 한 API에서 여러 리소스를 조합하거나, 업무 규칙에서 다른 도메인의 서비스를 사용해야 할 수 있다.
 예를 들어 다음 두 요구사항이 추가된다.
 
-1. `GET /movies/:id/showtimes`는 영화 정보와 상영 목록이 필요하므로,
+1. 새 엔드포인트 `GET /movies/:id/showtimes`는 영화 정보와 상영 목록이 필요하므로,
    `MoviesController`가 두 서비스를 함께 사용한다.
-2. 상영을 생성할 때 영화가 존재하는지 확인하므로,
+2. `POST /showtimes`로 상영을 생성할 때 영화가 존재하는지 확인하므로,
    `ShowtimesService`가 `MoviesService`를 사용한다.
 
 번호를 붙인 화살표가 새로 추가된 모듈 간 참조다. 파란 노드는 컨트롤러, 초록 노드는 서비스다.
@@ -53,11 +53,11 @@ flowchart TB
 ```mermaid
 flowchart LR
     subgraph MoviesModule["MoviesModule"]
-        MoviesController["MoviesController<br/>GET /movies/:id/showtimes"]
+        MoviesController["MoviesController<br/>/movies<br/>추가: GET /movies/:id/showtimes"]
         MoviesService["MoviesService"]
     end
     subgraph ShowtimesModule["ShowtimesModule"]
-        ShowtimesController["ShowtimesController"]
+        ShowtimesController["ShowtimesController<br/>/showtimes"]
         ShowtimesService["ShowtimesService"]
     end
     MoviesController --> MoviesService
@@ -102,8 +102,8 @@ Nest도 순환을 피하라고 권고한다.
 ```mermaid
 flowchart TB
     subgraph GatewayModule["GatewayModule — HTTP 컨트롤러"]
-        MoviesController["MoviesController<br/>GET /movies/:id/showtimes"]
-        ShowtimesController["ShowtimesController"]
+        MoviesController["MoviesController<br/>/movies<br/>GET /movies/:id/showtimes"]
+        ShowtimesController["ShowtimesController<br/>/showtimes"]
     end
     subgraph ShowtimesModule["ShowtimesModule"]
         ShowtimesService["ShowtimesService"]
