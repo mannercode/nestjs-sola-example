@@ -12,50 +12,99 @@ services each endpoint needs, while Core modules retain their own boundaries.
 
 ## Before: controllers and services in feature modules
 
-Start with a design that applies neither SoLA nor controller separation. Each
-feature module contains its controller and service, and services can call other
-feature services directly.
+**The services can have no circular dependency while their modules form a cycle.**
+Consider two requirements:
 
-An HTTP resource and a service boundary do not have to match one-to-one.
-`MoviesController` uses both movie and showtime services to serve
-`GET /movies/:id/showtimes`. Meanwhile, `ShowtimesService` checks the selected movie
-and theater before creating a showtime.
+1. `GET /movies/:id/showtimes` needs movie details and showtimes, so
+   `MoviesController` uses both services.
+2. Creating a showtime checks that the movie exists, so `ShowtimesService` uses
+   `MoviesService`.
+
+The boxes below are Nest modules. Blue nodes are controllers; green nodes are
+services. The numbered arrows connect classes in different modules.
+
+```mermaid
+flowchart LR
+    subgraph MoviesModule["MoviesModule"]
+        MoviesController["MoviesController<br/>GET /movies/:id/showtimes"]
+        MoviesService["MoviesService"]
+    end
+    subgraph ShowtimesModule["ShowtimesModule"]
+        ShowtimesController["ShowtimesController"]
+        ShowtimesService["ShowtimesService"]
+    end
+    MoviesController --> MoviesService
+    ShowtimesController --> ShowtimesService
+    MoviesController -->|"1. Read showtimes"| ShowtimesService
+    ShowtimesService -->|"2. Check movie exists"| MoviesService
+    classDef controller fill:#dbeafe,stroke:#2563eb,color:#172554
+    classDef service fill:#dcfce7,stroke:#15803d,color:#14532d
+    class MoviesController,ShowtimesController controller
+    class MoviesService,ShowtimesService service
+    linkStyle 2 stroke:#c2410c,stroke-width:3px
+    linkStyle 3 stroke:#15803d,stroke-width:3px
+```
+
+The service dependency is only `ShowtimesService → MoviesService`: no cycle.
+But a controller's dependencies also determine what its containing module must
+import. With each service exported from its own module, the two numbered arrows
+require these [Nest module imports](https://docs.nestjs.com/modules):
+
+```mermaid
+flowchart LR
+    MoviesModule["MoviesModule"] -->|"1. Its controller needs ShowtimesService"| ShowtimesModule["ShowtimesModule"]
+    ShowtimesModule -->|"2. Its service needs MoviesService"| MoviesModule
+    classDef cycle fill:#fef2f2,stroke:#b91c1c,color:#7f1d1d
+    class MoviesModule,ShowtimesModule cycle
+    linkStyle 0,1 stroke:#b91c1c,stroke-width:3px
+```
+
+**Keeping these dependencies and module registrations requires a module cycle.**
+Placing a controller with its service does not always create a cycle; both
+cross-module dependencies above are needed. Nest recommends avoiding cycles.
+Its [`forwardRef()` mechanism](https://docs.nestjs.com/fundamentals/circular-dependency)
+can resolve circular dependencies, but the module graph still contains the cycle.
+
+## First step: separate only the controllers
+
+Move the controllers' registration into `GatewayModule`, the HTTP layer. Keep all
+four class dependencies from the first diagram:
 
 ```mermaid
 flowchart TB
-    subgraph MoviesModule[MoviesModule]
-        MoviesController[MoviesController]
-        MoviesService[MoviesService]
+    subgraph GatewayModule["GatewayModule — HTTP controllers"]
+        MoviesController["MoviesController<br/>GET /movies/:id/showtimes"]
+        ShowtimesController["ShowtimesController"]
     end
-    subgraph TheatersModule[TheatersModule]
-        TheatersController[TheatersController]
-        TheatersService[TheatersService]
+    subgraph ShowtimesModule["ShowtimesModule"]
+        ShowtimesService["ShowtimesService"]
     end
-    subgraph ShowtimesModule[ShowtimesModule]
-        ShowtimesController[ShowtimesController]
-        ShowtimesService[ShowtimesService]
+    subgraph MoviesModule["MoviesModule"]
+        MoviesService["MoviesService"]
     end
     MoviesController --> MoviesService
-    MoviesController -->|"read a movie's showtimes"| ShowtimesService
-    TheatersController --> TheatersService
     ShowtimesController --> ShowtimesService
-    ShowtimesService -->|"check movie"| MoviesService
-    ShowtimesService -->|"check theater"| TheatersService
+    MoviesController -->|"1. Read showtimes"| ShowtimesService
+    ShowtimesService -->|"2. Check movie exists"| MoviesService
+    classDef controller fill:#dbeafe,stroke:#2563eb,color:#172554
+    classDef service fill:#dcfce7,stroke:#15803d,color:#14532d
+    class MoviesController,ShowtimesController controller
+    class MoviesService,ShowtimesService service
+    linkStyle 2 stroke:#c2410c,stroke-width:3px
+    linkStyle 3 stroke:#15803d,stroke-width:3px
 ```
 
-These provider references require `MoviesModule` to import `ShowtimesModule`,
-while `ShowtimesModule` imports `MoviesModule` and `TheatersModule`. The result is
-the module cycle `MoviesModule → ShowtimesModule → MoviesModule`, even though
-`MoviesService` does not inject `ShowtimesService`.
+Arrow 1 now requires `GatewayModule → ShowtimesModule`. `MoviesModule` no longer
+imports `ShowtimesModule`, so the cycle is gone. `GatewayModule` imports both
+service modules, and `ShowtimesModule → MoviesModule` still points in one direction.
+The same services and endpoint requirements are preserved.
 
-Using multiple services in a controller does not by itself create a cycle; the
-reverse module dependency completes it. Moving controllers into a **Gateway
-layer** removes HTTP composition from domain module imports. SoLA also moves the
-collaboration between Core services into Application. Here, Gateway means HTTP
-adapters.
+This change belongs in `@Module({ controllers, imports, exports })`; moving files
+alone does not change the Nest module graph.
 
-Nest's [module imports and exports](https://docs.nestjs.com/modules) provide the
-mechanism for these boundaries. SoLA supplies a rule for arranging them.
+This is an intermediate design step. The runnable sample also moves collaboration
+between Core services into Application, removing the remaining
+`ShowtimesModule → MoviesModule` dependency according to the SoLA rule below.
 
 ## The dependency rule
 
@@ -76,7 +125,7 @@ Gateway separates HTTP consumers from those services. Classes within a module ca
 collaborate normally. Each module exports its service; its data remains private.
 This use case does not call an external system, so it has no Infrastructure module.
 
-## After: controllers in Gateway, use cases in Application
+## SoLA in the runnable sample
 
 The showtime creation flow selects an existing movie and theater, then submits a
 showtime. `/showtime-creation` groups the endpoints for that task, and

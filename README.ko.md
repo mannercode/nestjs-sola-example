@@ -12,48 +12,101 @@ Core 모듈은 자기 경계를 유지한다.
 
 ## 적용 전: 기능별 모듈에 컨트롤러와 서비스를 함께 배치
 
-SoLA도, 컨트롤러 분리도 적용하지 않은 구조에서 시작한다.
-각 기능 모듈 안에 컨트롤러와 서비스가 있고, 서비스는 다른 기능의 서비스를 직접 호출할 수 있다.
+**서비스끼리는 순환하지 않아도, 그 서비스를 담은 모듈끼리는 순환할 수 있다.**
+다음 두 요구사항을 보자.
 
-HTTP 리소스와 서비스 경계는 일대일로 대응할 필요가 없다.
-`MoviesController`는 `GET /movies/:id/showtimes`를 제공하기 위해 영화와 상영 서비스를 함께 사용한다.
-한편 `ShowtimesService`는 상영을 생성하기 전에 선택한 영화와 극장이 존재하는지 확인한다.
+1. `GET /movies/:id/showtimes`는 영화 정보와 상영 목록이 필요하므로,
+   `MoviesController`가 두 서비스를 함께 사용한다.
+2. 상영을 생성할 때 영화가 존재하는지 확인하므로,
+   `ShowtimesService`가 `MoviesService`를 사용한다.
+
+아래 큰 상자는 Nest 모듈이다. 파란 노드는 컨트롤러, 초록 노드는 서비스다.
+번호를 붙인 화살표는 서로 다른 모듈에 있는 클래스를 연결한다.
+
+```mermaid
+flowchart LR
+    subgraph MoviesModule["MoviesModule"]
+        MoviesController["MoviesController<br/>GET /movies/:id/showtimes"]
+        MoviesService["MoviesService"]
+    end
+    subgraph ShowtimesModule["ShowtimesModule"]
+        ShowtimesController["ShowtimesController"]
+        ShowtimesService["ShowtimesService"]
+    end
+    MoviesController --> MoviesService
+    ShowtimesController --> ShowtimesService
+    MoviesController -->|"1. 상영 목록 조회"| ShowtimesService
+    ShowtimesService -->|"2. 영화 존재 확인"| MoviesService
+    classDef controller fill:#dbeafe,stroke:#2563eb,color:#172554
+    classDef service fill:#dcfce7,stroke:#15803d,color:#14532d
+    class MoviesController,ShowtimesController controller
+    class MoviesService,ShowtimesService service
+    linkStyle 2 stroke:#c2410c,stroke-width:3px
+    linkStyle 3 stroke:#15803d,stroke-width:3px
+```
+
+서비스의 의존성은 `ShowtimesService → MoviesService` 한 방향뿐이다. 순환이 없다.
+하지만 컨트롤러의 의존성도 그 컨트롤러가 속한 모듈의 import를 결정한다.
+각 서비스가 자기 모듈에서 export된다면, 위의 두 화살표를 연결하기 위해
+다음 [Nest 모듈 import](https://docs.nestjs.com/modules)가 필요하다.
+
+```mermaid
+flowchart LR
+    MoviesModule["MoviesModule"] -->|"1. 컨트롤러가 ShowtimesService를 사용"| ShowtimesModule["ShowtimesModule"]
+    ShowtimesModule -->|"2. 서비스가 MoviesService를 사용"| MoviesModule
+    classDef cycle fill:#fef2f2,stroke:#b91c1c,color:#7f1d1d
+    class MoviesModule,ShowtimesModule cycle
+    linkStyle 0,1 stroke:#b91c1c,stroke-width:3px
+```
+
+**이 의존성과 모듈 등록을 그대로 유지하면 모듈 순환을 피할 수 없다.**
+컨트롤러를 서비스와 함께 둔다고 언제나 순환하는 것은 아니다.
+위의 두 모듈 간 참조가 함께 있어야 순환이 완성된다.
+Nest도 순환을 피하라고 권고한다.
+[`forwardRef()`](https://docs.nestjs.com/fundamentals/circular-dependency)는 순환 의존성을 해석하게 해주지만,
+모듈 그래프의 순환 자체를 없애지는 않는다.
+
+## 첫 단계: 컨트롤러만 분리
+
+컨트롤러 등록을 HTTP 계층인 `GatewayModule`로 옮긴다.
+첫 그림에 있던 네 개의 클래스 참조는 모두 그대로 둔다.
 
 ```mermaid
 flowchart TB
-    subgraph MoviesModule[MoviesModule]
-        MoviesController[MoviesController]
-        MoviesService[MoviesService]
+    subgraph GatewayModule["GatewayModule — HTTP 컨트롤러"]
+        MoviesController["MoviesController<br/>GET /movies/:id/showtimes"]
+        ShowtimesController["ShowtimesController"]
     end
-    subgraph TheatersModule[TheatersModule]
-        TheatersController[TheatersController]
-        TheatersService[TheatersService]
+    subgraph ShowtimesModule["ShowtimesModule"]
+        ShowtimesService["ShowtimesService"]
     end
-    subgraph ShowtimesModule[ShowtimesModule]
-        ShowtimesController[ShowtimesController]
-        ShowtimesService[ShowtimesService]
+    subgraph MoviesModule["MoviesModule"]
+        MoviesService["MoviesService"]
     end
     MoviesController --> MoviesService
-    MoviesController -->|"영화의 상영 목록 조회"| ShowtimesService
-    TheatersController --> TheatersService
     ShowtimesController --> ShowtimesService
-    ShowtimesService -->|"영화 확인"| MoviesService
-    ShowtimesService -->|"극장 확인"| TheatersService
+    MoviesController -->|"1. 상영 목록 조회"| ShowtimesService
+    ShowtimesService -->|"2. 영화 존재 확인"| MoviesService
+    classDef controller fill:#dbeafe,stroke:#2563eb,color:#172554
+    classDef service fill:#dcfce7,stroke:#15803d,color:#14532d
+    class MoviesController,ShowtimesController controller
+    class MoviesService,ShowtimesService service
+    linkStyle 2 stroke:#c2410c,stroke-width:3px
+    linkStyle 3 stroke:#15803d,stroke-width:3px
 ```
 
-이 제공자 참조를 연결하려면 `MoviesModule`은 `ShowtimesModule`을 import하고,
-`ShowtimesModule`은 `MoviesModule`과 `TheatersModule`을 import해야 한다.
-그 결과 `MoviesModule → ShowtimesModule → MoviesModule`이라는 모듈 순환 참조가 생긴다.
-`MoviesService`가 `ShowtimesService`를 주입받지 않아도 발생하는 문제다.
+이제 1번 화살표에 필요한 import는 `GatewayModule → ShowtimesModule`이다.
+`MoviesModule`은 더 이상 `ShowtimesModule`을 import하지 않으므로 순환이 끊어진다.
+`GatewayModule`은 두 서비스 모듈을 import하고,
+`ShowtimesModule → MoviesModule`은 여전히 한 방향으로만 이어진다.
+같은 서비스와 API 요구사항을 유지하면서 해결한 것이다.
 
-컨트롤러가 여러 서비스를 사용한다는 사실만으로 순환이 생기지는 않는다.
-반대 방향의 모듈 참조가 추가될 때 순환이 완성된다.
-컨트롤러를 **Gateway 계층**으로 옮기면 HTTP 조합 때문에 도메인 모듈의 import가 늘어나는 것을 막을 수 있다.
-SoLA는 여기에 더해 Core 서비스 간의 협력을 Application으로 옮긴다.
-이 예제에서 Gateway는 HTTP 어댑터를 뜻한다.
+변경 대상은 `@Module({ controllers, imports, exports })`의 등록이다.
+파일 위치만 옮겨서는 Nest 모듈 그래프가 바뀌지 않는다.
 
-Nest의 [모듈 imports와 exports](https://docs.nestjs.com/modules)가 경계를 구현하는 수단이라면,
-SoLA는 그 경계를 배치하는 규칙이다.
+여기까지는 중간 설계 단계다. 실행 가능한 샘플은 아래 SoLA 규칙에 따라
+Core 서비스 간의 협력도 Application으로 옮겨,
+남아 있는 `ShowtimesModule → MoviesModule` 의존성까지 제거한다.
 
 ## 의존성 규칙
 
@@ -72,7 +125,7 @@ Gateway는 이 서비스를 사용하는 HTTP 진입점을 분리한다.
 한 모듈 안의 클래스들은 서로 협력할 수 있다. 각 모듈은 서비스를 공개하고 데이터는 내부에 둔다.
 이 유스케이스에는 외부 시스템 호출이 없어 Infrastructure 모듈을 만들지 않았다.
 
-## 적용 후: Gateway의 컨트롤러, Application의 유스케이스
+## 실행 가능한 샘플의 SoLA 구조
 
 상영시간 생성 흐름은 기존 영화와 극장을 선택한 뒤 상영시간을 제출한다.
 `/showtime-creation`은 이 작업에 필요한 엔드포인트를 묶고,
