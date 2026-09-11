@@ -10,18 +10,45 @@
 컨트롤러는 리소스 중심 API와 유스케이스 중심 API에서 필요한 서비스를 조합하고,
 Core 모듈은 자기 경계를 유지한다.
 
-## 적용 전: 기능별 모듈에 컨트롤러와 서비스를 함께 배치
+## 출발점: 기능별 모듈
 
-**서비스끼리는 순환하지 않아도, 그 서비스를 담은 모듈끼리는 순환할 수 있다.**
-다음 두 요구사항을 보자.
+기능마다 컨트롤러·서비스·저장소를 하나의 Nest 모듈에 배치한 구조에서 시작하자.
+큰 상자는 모듈, 화살표는 의존성을 나타낸다.
+
+```mermaid
+flowchart TB
+    subgraph MoviesModule["MoviesModule"]
+        direction TB
+        MoviesController["MoviesController"] --> MoviesService["MoviesService"]
+        MoviesService --> MoviesRepository["MoviesRepository"]
+    end
+    subgraph ShowtimesModule["ShowtimesModule"]
+        direction TB
+        ShowtimesController["ShowtimesController"] --> ShowtimesService["ShowtimesService"]
+        ShowtimesService --> ShowtimesRepository["ShowtimesRepository"]
+    end
+    classDef controller fill:#dbeafe,stroke:#2563eb,color:#172554
+    classDef service fill:#dcfce7,stroke:#15803d,color:#14532d
+    classDef repository fill:#f1f5f9,stroke:#64748b,color:#334155
+    class MoviesController,ShowtimesController controller
+    class MoviesService,ShowtimesService service
+    class MoviesRepository,ShowtimesRepository repository
+```
+
+참조가 각 모듈 안에서 끝나므로, 이 단계에서는 모듈 순환이 없다.
+
+## 요구사항이 늘어나면: 모듈을 넘는 참조
+
+한 API에서 여러 리소스를 조합하거나, 업무 규칙에서 다른 도메인의 서비스를 사용해야 할 수 있다.
+예를 들어 다음 두 요구사항이 추가된다.
 
 1. `GET /movies/:id/showtimes`는 영화 정보와 상영 목록이 필요하므로,
    `MoviesController`가 두 서비스를 함께 사용한다.
 2. 상영을 생성할 때 영화가 존재하는지 확인하므로,
    `ShowtimesService`가 `MoviesService`를 사용한다.
 
-아래 큰 상자는 Nest 모듈이다. 파란 노드는 컨트롤러, 초록 노드는 서비스다.
-번호를 붙인 화살표는 서로 다른 모듈에 있는 클래스를 연결한다.
+번호를 붙인 화살표가 새로 추가된 모듈 간 참조다. 파란 노드는 컨트롤러, 초록 노드는 서비스다.
+저장소는 각 모듈 내부에 그대로 두며, 이후 그림에서는 모듈 경계를 넘는 의존성에 집중하기 위해 생략한다.
 
 ```mermaid
 flowchart LR
@@ -45,6 +72,7 @@ flowchart LR
     linkStyle 3 stroke:#15803d,stroke-width:3px
 ```
 
+**서비스끼리는 순환하지 않지만, 그 서비스를 담은 모듈끼리는 순환한다.**
 서비스의 의존성은 `ShowtimesService → MoviesService` 한 방향뿐이다. 순환이 없다.
 하지만 컨트롤러의 의존성도 그 컨트롤러가 속한 모듈의 import를 결정한다.
 각 서비스가 자기 모듈에서 export된다면, 위의 두 화살표를 연결하기 위해
@@ -69,7 +97,7 @@ Nest도 순환을 피하라고 권고한다.
 ## 첫 단계: 컨트롤러만 분리
 
 컨트롤러 등록을 HTTP 계층인 `GatewayModule`로 옮긴다.
-첫 그림에 있던 네 개의 클래스 참조는 모두 그대로 둔다.
+앞선 문제 예시의 클래스 참조 네 개는 모두 그대로 둔다.
 
 ```mermaid
 flowchart TB

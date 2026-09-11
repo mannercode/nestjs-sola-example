@@ -10,18 +10,46 @@ example follows one use case, creating a movie showtime.
 Controllers can serve resource-oriented and use-case-oriented APIs using the
 services each endpoint needs, while Core modules retain their own boundaries.
 
-## Before: controllers and services in feature modules
+## Starting point: one module per feature
 
-**The services can have no circular dependency while their modules form a cycle.**
-Consider two requirements:
+Start with each feature's controller, service, and repository in one Nest module.
+The boxes represent modules; arrows represent dependencies.
+
+```mermaid
+flowchart TB
+    subgraph MoviesModule["MoviesModule"]
+        direction TB
+        MoviesController["MoviesController"] --> MoviesService["MoviesService"]
+        MoviesService --> MoviesRepository["MoviesRepository"]
+    end
+    subgraph ShowtimesModule["ShowtimesModule"]
+        direction TB
+        ShowtimesController["ShowtimesController"] --> ShowtimesService["ShowtimesService"]
+        ShowtimesService --> ShowtimesRepository["ShowtimesRepository"]
+    end
+    classDef controller fill:#dbeafe,stroke:#2563eb,color:#172554
+    classDef service fill:#dcfce7,stroke:#15803d,color:#14532d
+    classDef repository fill:#f1f5f9,stroke:#64748b,color:#334155
+    class MoviesController,ShowtimesController controller
+    class MoviesService,ShowtimesService service
+    class MoviesRepository,ShowtimesRepository repository
+```
+
+Dependencies stay inside each module, so there is no module cycle at this point.
+
+## As requirements grow: references across modules
+
+An endpoint may need data from multiple features, and a business rule may need
+another feature's service. Consider two requirements:
 
 1. `GET /movies/:id/showtimes` needs movie details and showtimes, so
    `MoviesController` uses both services.
 2. Creating a showtime checks that the movie exists, so `ShowtimesService` uses
    `MoviesService`.
 
-The boxes below are Nest modules. Blue nodes are controllers; green nodes are
-services. The numbered arrows connect classes in different modules.
+The numbered arrows add references between modules. Blue nodes are controllers;
+green nodes are services. Repositories stay inside their modules and are omitted
+from the following diagrams to focus on the dependencies that cross boundaries.
 
 ```mermaid
 flowchart LR
@@ -45,6 +73,7 @@ flowchart LR
     linkStyle 3 stroke:#15803d,stroke-width:3px
 ```
 
+**The services have no circular dependency, but their modules form a cycle.**
 The service dependency is only `ShowtimesService → MoviesService`: no cycle.
 But a controller's dependencies also determine what its containing module must
 import. With each service exported from its own module, the two numbered arrows
@@ -68,7 +97,7 @@ can resolve circular dependencies, but the module graph still contains the cycle
 ## First step: separate only the controllers
 
 Move the controllers' registration into `GatewayModule`, the HTTP layer. Keep all
-four class dependencies from the first diagram:
+four class dependencies from the problem example:
 
 ```mermaid
 flowchart TB
